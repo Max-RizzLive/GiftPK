@@ -109,7 +109,7 @@ pointer-events:none; opacity:0.18;
 /* ══════════════════════════════════════
 NEON SCANLINES
 ══════════════════════════════════════ */
-#scanlines {
+@media(max-width:768px){#scanlines,#grid-lines{display:none!important}}#scanlines {
 position:fixed; inset:0; z-index:3; pointer-events:none;
 background:repeating-linear-gradient(
 0deg,
@@ -527,7 +527,7 @@ animation:pulse 2s ease-in-out infinite;
 
 <div id="floaters" style="position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden;"></div>
 
-<div id="streaks" style="position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden;"></div>
+
 
 <div class="wrapper">
   <header>
@@ -680,11 +680,12 @@ font-weight:300;
 </div>
 
 <script>
-/* ══════════════════════════════════════════════════════════
-   CANVAS: particles + shooting stars + aurora waves
-══════════════════════════════════════════════════════════ */
+/* ── Lightweight animation engine – mobile optimised ── */
+const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+const isAndroid = /Android/i.test(navigator.userAgent);
+
 const canvas = document.getElementById('bg-canvas');
-const ctx    = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', {alpha:true});
 
 function resize(){
   canvas.width  = window.innerWidth;
@@ -693,227 +694,142 @@ function resize(){
 resize();
 window.addEventListener('resize', resize);
 
-/* --- Particles (neon fireflies) --- */
-const PARTICLE_COUNT = 150;
+/* Particle count: much lower on Android */
+const COUNT = isAndroid ? 25 : isMobile ? 45 : 90;
 const particles = [];
 
+const COLORS = ['168,85,247','6,182,212','236,72,153'];
+
 class Particle {
-  constructor(){this.reset(true)}
+  constructor(){ this.reset(true); }
   reset(init){
-this.x   = Math.random() * canvas.width;
-this.y   = init ? Math.random() * canvas.height : canvas.height + 10;
-this.r   = Math.random() * 1.8 + .3;
-this.vy  = -(Math.random() * .4 + .1);
-this.vx  = (Math.random() - .5) * .3;
-this.life= 0;
-this.maxLife = Math.random() * 300 + 200;
-const pick = Math.random();
-if(pick < .4)      this.color = `rgba(168,85,247,`;   // purple
-else if(pick < .7) this.color = `rgba(6,182,212,`;    // cyan
-else               this.color = `rgba(236,72,153,`;   // magenta
+    this.x = Math.random() * canvas.width;
+    this.y = init ? Math.random() * canvas.height : canvas.height + 5;
+    this.r = Math.random() * 1.4 + 0.3;
+    this.vy = -(Math.random() * 0.35 + 0.08);
+    this.vx = (Math.random() - 0.5) * 0.2;
+    this.life = 0;
+    this.maxLife = Math.random() * 200 + 150;
+    this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
   }
   update(){
-this.x += this.vx + Math.sin(this.life * .03) * .3;
-this.y += this.vy;
-this.life++;
-if(this.life > this.maxLife || this.y < -10) this.reset(false);
+    this.x += this.vx;
+    this.y += this.vy;
+    this.life++;
+    if(this.life > this.maxLife || this.y < -5) this.reset(false);
   }
   draw(){
-const progress = this.life / this.maxLife;
-const alpha    = Math.sin(progress * Math.PI) * .8;
-ctx.beginPath();
-ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
-ctx.fillStyle = this.color + alpha + ')';
-ctx.shadowBlur  = 10;
-ctx.shadowColor = this.color + '.8)';
-ctx.fill();
-ctx.shadowBlur  = 0;
+    const a = Math.sin((this.life / this.maxLife) * Math.PI) * 0.7;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${this.color},${a})`;
+    ctx.fill();
   }
 }
+for(let i = 0; i < COUNT; i++) particles.push(new Particle());
 
-for(let i=0;i<PARTICLE_COUNT;i++) particles.push(new Particle());
-
-/* --- Shooting stars (neon colored) --- */
+/* Shooting stars – skip on Android */
 const shoots = [];
-const shootColors = [
-  ['255,0,200','255,255,255'],
-  ['0,220,255','200,255,255'],
-  ['180,0,255','255,200,255'],
-];
-class ShootingStar{
-  constructor(){this.spawn()}
-  spawn(){
-this.x  = Math.random() * canvas.width  * .7;
-this.y  = Math.random() * canvas.height * .4;
-this.len= Math.random() * 200 + 80;
-this.spd= Math.random() * 10  + 5;
-this.ang= Math.PI/4 + (Math.random()-.5)*.4;
-this.life=0;
-this.maxLife=60;
-this.active=false;
-this.delay = Math.random() * 350;
-this.timer = 0;
-const c = shootColors[Math.floor(Math.random()*shootColors.length)];
-this.c1 = c[0]; this.c2 = c[1];
+if(!isAndroid){
+  const SC = [['255,0,200','255,255,255'],['0,220,255','200,255,255']];
+  class Star {
+    constructor(){ this.spawn(); }
+    spawn(){
+      this.x = Math.random() * canvas.width * 0.7;
+      this.y = Math.random() * canvas.height * 0.4;
+      this.len = Math.random() * 140 + 60;
+      this.spd = Math.random() * 8 + 4;
+      this.ang = Math.PI/4 + (Math.random()-0.5)*0.3;
+      this.life = 0; this.maxLife = 55;
+      this.active = false;
+      this.delay = Math.random() * 300; this.timer = 0;
+      const c = SC[Math.floor(Math.random()*SC.length)];
+      this.c1 = c[0]; this.c2 = c[1];
+    }
+    update(){
+      this.timer++;
+      if(this.timer < this.delay) return;
+      this.active = true;
+      this.x += Math.cos(this.ang)*this.spd;
+      this.y += Math.sin(this.ang)*this.spd;
+      this.life++;
+      if(this.life > this.maxLife) this.spawn();
+    }
+    draw(){
+      if(!this.active) return;
+      const a = (1 - this.life/this.maxLife) * 0.8;
+      const tx = this.x - Math.cos(this.ang)*this.len;
+      const ty = this.y - Math.sin(this.ang)*this.len;
+      const g = ctx.createLinearGradient(tx,ty,this.x,this.y);
+      g.addColorStop(0,`rgba(${this.c1},0)`);
+      g.addColorStop(1,`rgba(${this.c2},${a})`);
+      ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(this.x,this.y);
+      ctx.strokeStyle = g; ctx.lineWidth = 1.5; ctx.stroke();
+    }
   }
-  update(){
-this.timer++;
-if(this.timer < this.delay) return;
-this.active=true;
-this.x  += Math.cos(this.ang)*this.spd;
-this.y  += Math.sin(this.ang)*this.spd;
-this.life++;
-if(this.life > this.maxLife) this.spawn();
-  }
-  draw(){
-if(!this.active) return;
-const alpha = (1 - this.life/this.maxLife) * .9;
-const tx = this.x - Math.cos(this.ang)*this.len;
-const ty = this.y - Math.sin(this.ang)*this.len;
-const g  = ctx.createLinearGradient(tx,ty,this.x,this.y);
-g.addColorStop(0,`rgba(${this.c1},0)`);
-g.addColorStop(.6,`rgba(${this.c1},${alpha*.5})`);
-g.addColorStop(1,`rgba(${this.c2},${alpha})`);
-ctx.beginPath();
-ctx.moveTo(tx,ty);
-ctx.lineTo(this.x,this.y);
-ctx.strokeStyle=g;
-ctx.lineWidth=1.8;
-ctx.shadowBlur=6;
-ctx.shadowColor=`rgba(${this.c1},${alpha})`;
-ctx.stroke();
-ctx.shadowBlur=0;
-  }
+  for(let i=0;i<3;i++) shoots.push(new Star());
 }
-for(let i=0;i<6;i++) shoots.push(new ShootingStar());
 
-/* --- Aurora wave bands (purple/cyan/magenta) --- */
+/* Simple aurora – 1 band on Android, 2 on mobile, 3 on desktop */
 let auroraT = 0;
+const bandCount = isAndroid ? 1 : isMobile ? 2 : 3;
+const bands = [
+  {yBase:.18, amp:60, freq:.003, speed:.8,  r:124,g:58, b:237, a:.06},
+  {yBase:.28, amp:70, freq:.002, speed:.6,  r:6,  g:182,b:212, a:.05},
+  {yBase:.12, amp:45, freq:.004, speed:1.1, r:236,g:72, b:153, a:.04},
+].slice(0, bandCount);
+
 function drawAurora(){
-  auroraT += .005;
+  auroraT += 0.004;
   const W = canvas.width, H = canvas.height;
-  const bands = [
-{yBase:.15, amp:70, freq:.003, speed:1,   r:124,g:58, b:237, a:.07},
-{yBase:.30, amp:90, freq:.002, speed:.7,  r:6,  g:182,b:212, a:.05},
-{yBase:.22, amp:55, freq:.004, speed:1.3, r:236,g:72, b:153, a:.045},
-{yBase:.10, amp:40, freq:.005, speed:1.6, r:168,g:85, b:247, a:.04},
-  ];
+  const step = isAndroid ? 12 : isMobile ? 8 : 5;
   bands.forEach(b=>{
-ctx.beginPath();
-for(let x=0;x<=W;x+=4){
-const wave = Math.sin(x*b.freq + auroraT*b.speed) * b.amp
-+ Math.sin(x*b.freq*.5 + auroraT*b.speed*.6) * b.amp*.5;
-const y = H*b.yBase + wave;
-x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-}
-ctx.lineTo(W,0); ctx.lineTo(0,0); ctx.closePath();
-const grd = ctx.createLinearGradient(0,H*b.yBase-b.amp,0,H*b.yBase+b.amp);
-grd.addColorStop(0,`rgba(${b.r},${b.g},${b.b},0)`);
-grd.addColorStop(.5,`rgba(${b.r},${b.g},${b.b},${b.a})`);
-grd.addColorStop(1,`rgba(${b.r},${b.g},${b.b},0)`);
-ctx.fillStyle=grd;
-ctx.fill();
+    ctx.beginPath();
+    for(let x=0; x<=W; x+=step){
+      const y = H*b.yBase + Math.sin(x*b.freq + auroraT*b.speed)*b.amp;
+      x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.lineTo(W,0); ctx.lineTo(0,0); ctx.closePath();
+    const grd = ctx.createLinearGradient(0,H*b.yBase-b.amp,0,H*b.yBase+b.amp);
+    grd.addColorStop(0,`rgba(${b.r},${b.g},${b.b},0)`);
+    grd.addColorStop(.5,`rgba(${b.r},${b.g},${b.b},${b.a})`);
+    grd.addColorStop(1,`rgba(${b.r},${b.g},${b.b},0)`);
+    ctx.fillStyle = grd; ctx.fill();
   });
 }
 
-/* --- Pulse rings --- */
-const rings=[];
-let ringTimer=0;
-const ringColors=['124,58,237','6,182,212','236,72,153','168,85,247'];
-class Ring{
-  constructor(){
-this.x=canvas.width/2; this.y=canvas.height/2;
-this.r=0; this.maxR=Math.max(canvas.width,canvas.height)*.65;
-this.alpha=.2;
-this.color=ringColors[Math.floor(Math.random()*ringColors.length)];
-  }
-  update(){this.r+=1.4; this.alpha-=.002;}
-  draw(){
-if(this.alpha<=0)return;
-ctx.beginPath();
-ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
-ctx.strokeStyle=`rgba(${this.color},${this.alpha})`;
-ctx.lineWidth=1;
-ctx.shadowBlur=4;
-ctx.shadowColor=`rgba(${this.color},${this.alpha*2})`;
-ctx.stroke();
-ctx.shadowBlur=0;
-  }
-  get dead(){return this.alpha<=0;}
-}
+/* Frame throttle – 30fps on Android, 60fps elsewhere */
+let lastFrame = 0;
+const FPS_INTERVAL = isAndroid ? 1000/30 : 0;
 
-/* --- Main loop --- */
-function loop(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  drawAurora();
-  ringTimer++;
-  if(ringTimer%80===0) rings.push(new Ring());
-  for(let i=rings.length-1;i>=0;i--){
-rings[i].update(); rings[i].draw();
-if(rings[i].dead) rings.splice(i,1);
-  }
-  shoots.forEach(s=>{s.update();s.draw();});
-  particles.forEach(p=>{p.update();p.draw();});
+function loop(ts){
   requestAnimationFrame(loop);
+  if(ts - lastFrame < FPS_INTERVAL) return;
+  lastFrame = ts;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawAurora();
+  shoots.forEach(s=>{ s.update(); s.draw(); });
+  particles.forEach(p=>{ p.update(); p.draw(); });
 }
-loop();
+requestAnimationFrame(loop);
 
-/* ══════════════════════════════════════════════════════════
-   FLOATING GIFT EMOJIS
-══════════════════════════════════════════════════════════ */
-const emojis = ['🎁','🎀','👑','💝','🎊','✨','💜','🌟','🎖️','💫','🦊','🎆'];
-const floaterContainer = document.getElementById('floaters');
-
-function spawnFloater(){
-  const el = document.createElement('div');
-  el.className='floater';
-  el.textContent = emojis[Math.floor(Math.random()*emojis.length)];
-  const size = Math.random()*1.4+1;
-  const dur  = Math.random()*12+10;
-  const left = Math.random()*98;
-  const delay= Math.random()*-20;
-  el.style.cssText=`
-left:${left}vw; bottom:-60px;
-font-size:${size}rem;
-animation-duration:${dur}s;
-animation-delay:${delay}s;
-  `;
-  floaterContainer.appendChild(el);
-  setTimeout(()=>el.remove(), (dur+Math.abs(delay))*1000+1000);
+/* Floating emojis – none on Android, fewer on mobile */
+if(!isAndroid){
+  const emojis = ['🎁','🎀','👑','💝','✨','💜','🌟','💫'];
+  const fc = document.getElementById('floaters');
+  function spawnFloater(){
+    const el = document.createElement('div');
+    el.className = 'floater';
+    el.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    const dur = Math.random()*10+10, left = Math.random()*96;
+    el.style.cssText=`left:${left}vw;bottom:-50px;font-size:${Math.random()*1.2+0.9}rem;animation-duration:${dur}s;animation-delay:${Math.random()*-15}s;`;
+    fc.appendChild(el);
+    setTimeout(()=>el.remove(), (dur+15)*1000);
+  }
+  setInterval(spawnFloater, isMobile ? 2000 : 1000);
+  const initial = isMobile ? 4 : 8;
+  for(let i=0;i<initial;i++) spawnFloater();
 }
-setInterval(spawnFloater, 800);
-for(let i=0;i<12;i++) spawnFloater();
-
-/* ══════════════════════════════════════════════════════════
-   NEON HORIZONTAL STREAKS
-══════════════════════════════════════════════════════════ */
-const streakContainer = document.getElementById('streaks');
-const streakPalette = [
-  'rgba(168,85,247,0.6)','rgba(6,182,212,0.6)','rgba(236,72,153,0.5)','rgba(255,255,255,0.4)'
-];
-
-function spawnStreak(){
-  const el = document.createElement('div');
-  el.className = 'neon-streak';
-  const color = streakPalette[Math.floor(Math.random()*streakPalette.length)];
-  const width  = Math.random()*200+100;
-  const top    = Math.random()*100;
-  const dur    = Math.random()*3+2;
-  const delay  = Math.random()*8;
-  el.style.cssText=`
-top:${top}vh;
-width:${width}px;
-background:linear-gradient(90deg, transparent, ${color}, transparent);
-box-shadow:0 0 8px ${color};
-animation-duration:${dur}s;
-animation-delay:${delay}s;
-animation-name:streakFly;
-animation-timing-function:linear;
-animation-iteration-count:infinite;
-  `;
-  streakContainer.appendChild(el);
-}
-for(let i=0;i<14;i++) spawnStreak();
 </script>
 </body>
 </html>
