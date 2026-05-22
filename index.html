@@ -7,6 +7,48 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600&family=Lato:wght@300;400&family=Fredoka+One&display=swap" rel="stylesheet"/>
   <style>
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+/* ── ANDROID / MOBILE PERFORMANCE FIXES ── */
+@media (max-width: 768px) {
+  /* Kill all orb animations - biggest GPU hog */
+  .orb { animation: none !important; }
+  /* Remove backdrop blur - causes flicker on Android */
+  .section-card { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(13,5,32,0.95) !important; }
+  /* Stop gradient animations on text */
+  h1 { animation: none !important; background-size: 100% 100% !important; }
+  h2 { animation: none !important; background-size: 100% 100% !important; }
+  .section-number { box-shadow: none !important; }
+  /* Stop shimmer line animation */
+  .shimmer-line { animation: none !important; background: linear-gradient(90deg, transparent, #a855f7, transparent) !important; }
+  /* Stop crown bounce */
+  .crown-icon { animation: none !important; filter: none !important; }
+  /* Stop card border pulse */
+  .neon-border { animation: none !important; }
+  /* Stop card fade-in (already done, keep static) */
+  .section-card { animation: none !important; }
+  .terms-card { animation: none !important; }
+  /* Stop WA button pulse */
+  .section-card:nth-child(2), .section-card:nth-child(3), .section-card:nth-child(4) { animation: none !important; }
+  /* Disable all filters on orbs */
+  .o1,.o2,.o3,.o4,.o5,.o6 { filter: none !important; opacity: 0.3; }
+  /* Stop header animation */
+  header { animation: none !important; }
+  /* Disable city skyline on mobile */
+  #city-skyline { display: none !important; }
+  /* Disable canvas on Android - handled by JS already but ensure */
+  #bg-canvas { opacity: 0.6; }
+  /* Reduce box shadows */
+  .info-row { box-shadow: none !important; }
+  /* Stop WA button glow pulse */
+  a[href*="wa.me"] { animation: none !important; box-shadow: 0 4px 20px rgba(37,211,102,0.4) !important; }
+  /* will-change hints for compositor */
+  .section-card { will-change: auto !important; }
+}
+
+/* Ensure smooth rendering on all devices */
+.orb { will-change: transform; }
+.section-card { -webkit-transform: translateZ(0); transform: translateZ(0); }
+
 :root {
 --purple:#7c3aed;
 --purple2:#a855f7;
@@ -615,29 +657,36 @@ font-weight:300;
 </div>
 
 <script>
-/* ── Lightweight animation engine – mobile optimised ── */
-const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-const isAndroid = /Android/i.test(navigator.userAgent);
+(function(){
+  var ua = navigator.userAgent;
+  var isAndroid = /Android/i.test(ua);
+  var isMobile = /Android|iPhone|iPad/i.test(ua);
 
-const canvas = document.getElementById('bg-canvas');
-const ctx = canvas.getContext('2d', {alpha:true});
+  /* ── On Android: no canvas, no JS animations at all ── */
+  if(isAndroid) {
+    var c = document.getElementById('bg-canvas');
+    if(c) c.style.display = 'none';
+    return; /* stop all JS here */
+  }
 
-function resize(){
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener('resize', resize);
+  /* ── Canvas setup (non-Android only) ── */
+  var canvas = document.getElementById('bg-canvas');
+  var ctx = canvas.getContext('2d');
 
-/* Particle count: much lower on Android */
-const COUNT = isAndroid ? 25 : isMobile ? 45 : 90;
-const particles = [];
+  function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
 
-const COLORS = ['168,85,247','6,182,212','236,72,153'];
+  /* ── Particles ── */
+  var COUNT = isMobile ? 40 : 90;
+  var COLORS = ['168,85,247','6,182,212','236,72,153'];
+  var particles = [];
 
-class Particle {
-  constructor(){ this.reset(true); }
-  reset(init){
+  function Particle(){ this.reset(true); }
+  Particle.prototype.reset = function(init){
     this.x = Math.random() * canvas.width;
     this.y = init ? Math.random() * canvas.height : canvas.height + 5;
     this.r = Math.random() * 1.4 + 0.3;
@@ -646,30 +695,28 @@ class Particle {
     this.life = 0;
     this.maxLife = Math.random() * 200 + 150;
     this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
-  }
-  update(){
+  };
+  Particle.prototype.update = function(){
     this.x += this.vx;
     this.y += this.vy;
     this.life++;
     if(this.life > this.maxLife || this.y < -5) this.reset(false);
-  }
-  draw(){
-    const a = Math.sin((this.life / this.maxLife) * Math.PI) * 0.7;
+  };
+  Particle.prototype.draw = function(){
+    var a = Math.sin((this.life / this.maxLife) * Math.PI) * 0.7;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${this.color},${a})`;
+    ctx.fillStyle = 'rgba(' + this.color + ',' + a + ')';
     ctx.fill();
-  }
-}
-for(let i = 0; i < COUNT; i++) particles.push(new Particle());
+  };
+  for(var i = 0; i < COUNT; i++) particles.push(new Particle());
 
-/* Shooting stars – skip on Android */
-const shoots = [];
-if(!isAndroid){
-  const SC = [['255,0,200','255,255,255'],['0,220,255','200,255,255']];
-  class Star {
-    constructor(){ this.spawn(); }
-    spawn(){
+  /* ── Shooting stars (desktop only) ── */
+  var shoots = [];
+  if(!isMobile){
+    var SC = [['255,0,200','255,255,255'],['0,220,255','200,255,255']];
+    function Star(){ this.spawn(); }
+    Star.prototype.spawn = function(){
       this.x = Math.random() * canvas.width * 0.7;
       this.y = Math.random() * canvas.height * 0.4;
       this.len = Math.random() * 140 + 60;
@@ -678,10 +725,10 @@ if(!isAndroid){
       this.life = 0; this.maxLife = 55;
       this.active = false;
       this.delay = Math.random() * 300; this.timer = 0;
-      const c = SC[Math.floor(Math.random()*SC.length)];
+      var c = SC[Math.floor(Math.random()*SC.length)];
       this.c1 = c[0]; this.c2 = c[1];
-    }
-    update(){
+    };
+    Star.prototype.update = function(){
       this.timer++;
       if(this.timer < this.delay) return;
       this.active = true;
@@ -689,82 +736,76 @@ if(!isAndroid){
       this.y += Math.sin(this.ang)*this.spd;
       this.life++;
       if(this.life > this.maxLife) this.spawn();
-    }
-    draw(){
+    };
+    Star.prototype.draw = function(){
       if(!this.active) return;
-      const a = (1 - this.life/this.maxLife) * 0.8;
-      const tx = this.x - Math.cos(this.ang)*this.len;
-      const ty = this.y - Math.sin(this.ang)*this.len;
-      const g = ctx.createLinearGradient(tx,ty,this.x,this.y);
-      g.addColorStop(0,`rgba(${this.c1},0)`);
-      g.addColorStop(1,`rgba(${this.c2},${a})`);
+      var a = (1 - this.life/this.maxLife) * 0.8;
+      var tx = this.x - Math.cos(this.ang)*this.len;
+      var ty = this.y - Math.sin(this.ang)*this.len;
+      var g = ctx.createLinearGradient(tx,ty,this.x,this.y);
+      g.addColorStop(0,'rgba('+this.c1+',0)');
+      g.addColorStop(1,'rgba('+this.c2+','+a+')');
       ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(this.x,this.y);
       ctx.strokeStyle = g; ctx.lineWidth = 1.5; ctx.stroke();
+    };
+    for(var j=0; j<3; j++) shoots.push(new Star());
+  }
+
+  /* ── Aurora ── */
+  var auroraT = 0;
+  var bands = [
+    {yBase:.18, amp:60, freq:.003, speed:.8,  r:124,g:58, b:237, a:.06},
+    {yBase:.28, amp:70, freq:.002, speed:.6,  r:6,  g:182,b:212, a:.05},
+    {yBase:.12, amp:45, freq:.004, speed:1.1, r:236,g:72, b:153, a:.04}
+  ].slice(0, isMobile ? 2 : 3);
+
+  function drawAurora(){
+    auroraT += 0.004;
+    var W = canvas.width, H = canvas.height;
+    var step = isMobile ? 8 : 5;
+    for(var i=0; i<bands.length; i++){
+      var b = bands[i];
+      ctx.beginPath();
+      for(var x=0; x<=W; x+=step){
+        var y = H*b.yBase + Math.sin(x*b.freq + auroraT*b.speed)*b.amp;
+        if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.lineTo(W,0); ctx.lineTo(0,0); ctx.closePath();
+      var grd = ctx.createLinearGradient(0,H*b.yBase-b.amp,0,H*b.yBase+b.amp);
+      grd.addColorStop(0,'rgba('+b.r+','+b.g+','+b.b+',0)');
+      grd.addColorStop(.5,'rgba('+b.r+','+b.g+','+b.b+','+b.a+')');
+      grd.addColorStop(1,'rgba('+b.r+','+b.g+','+b.b+',0)');
+      ctx.fillStyle = grd; ctx.fill();
     }
   }
-  for(let i=0;i<3;i++) shoots.push(new Star());
-}
 
-/* Simple aurora – 1 band on Android, 2 on mobile, 3 on desktop */
-let auroraT = 0;
-const bandCount = isAndroid ? 1 : isMobile ? 2 : 3;
-const bands = [
-  {yBase:.18, amp:60, freq:.003, speed:.8,  r:124,g:58, b:237, a:.06},
-  {yBase:.28, amp:70, freq:.002, speed:.6,  r:6,  g:182,b:212, a:.05},
-  {yBase:.12, amp:45, freq:.004, speed:1.1, r:236,g:72, b:153, a:.04},
-].slice(0, bandCount);
-
-function drawAurora(){
-  auroraT += 0.004;
-  const W = canvas.width, H = canvas.height;
-  const step = isAndroid ? 12 : isMobile ? 8 : 5;
-  bands.forEach(b=>{
-    ctx.beginPath();
-    for(let x=0; x<=W; x+=step){
-      const y = H*b.yBase + Math.sin(x*b.freq + auroraT*b.speed)*b.amp;
-      x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-    }
-    ctx.lineTo(W,0); ctx.lineTo(0,0); ctx.closePath();
-    const grd = ctx.createLinearGradient(0,H*b.yBase-b.amp,0,H*b.yBase+b.amp);
-    grd.addColorStop(0,`rgba(${b.r},${b.g},${b.b},0)`);
-    grd.addColorStop(.5,`rgba(${b.r},${b.g},${b.b},${b.a})`);
-    grd.addColorStop(1,`rgba(${b.r},${b.g},${b.b},0)`);
-    ctx.fillStyle = grd; ctx.fill();
-  });
-}
-
-/* Frame throttle – 30fps on Android, 60fps elsewhere */
-let lastFrame = 0;
-const FPS_INTERVAL = isAndroid ? 1000/30 : 0;
-
-function loop(ts){
+  /* ── Main loop ── */
+  function loop(){
+    requestAnimationFrame(loop);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawAurora();
+    for(var i=0; i<shoots.length; i++){ shoots[i].update(); shoots[i].draw(); }
+    for(var i=0; i<particles.length; i++){ particles[i].update(); particles[i].draw(); }
+  }
   requestAnimationFrame(loop);
-  if(ts - lastFrame < FPS_INTERVAL) return;
-  lastFrame = ts;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawAurora();
-  shoots.forEach(s=>{ s.update(); s.draw(); });
-  particles.forEach(p=>{ p.update(); p.draw(); });
-}
-requestAnimationFrame(loop);
 
-/* Floating emojis – none on Android, fewer on mobile */
-if(!isAndroid){
-  const emojis = ['🎁','🎀','👑','💝','✨','💜','🌟','💫'];
-  const fc = document.getElementById('floaters');
+  /* ── Floating emojis ── */
+  var emojis = ['🎁','🎀','👑','💝','✨','💜','🌟','💫'];
+  var fc = document.getElementById('floaters');
   function spawnFloater(){
-    const el = document.createElement('div');
+    var el = document.createElement('div');
     el.className = 'floater';
     el.textContent = emojis[Math.floor(Math.random()*emojis.length)];
-    const dur = Math.random()*10+10, left = Math.random()*96;
-    el.style.cssText=`left:${left}vw;bottom:-50px;font-size:${Math.random()*1.2+0.9}rem;animation-duration:${dur}s;animation-delay:${Math.random()*-15}s;`;
+    var dur = Math.random()*10+10;
+    el.style.cssText = 'left:'+Math.random()*96+'vw;bottom:-50px;font-size:'+(Math.random()*1.2+0.9)+'rem;animation-duration:'+dur+'s;animation-delay:'+(Math.random()*-15)+'s;';
     fc.appendChild(el);
-    setTimeout(()=>el.remove(), (dur+15)*1000);
+    setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, (dur+15)*1000);
   }
   setInterval(spawnFloater, isMobile ? 2000 : 1000);
-  const initial = isMobile ? 4 : 8;
-  for(let i=0;i<initial;i++) spawnFloater();
-}
+  var initCount = isMobile ? 4 : 8;
+  for(var i=0; i<initCount; i++) spawnFloater();
+
+})();
 </script>
 </body>
 </html>
